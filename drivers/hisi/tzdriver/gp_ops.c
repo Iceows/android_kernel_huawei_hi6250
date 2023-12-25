@@ -1052,6 +1052,7 @@ int tc_client_call(TC_NS_ClientContext *client_context,
 	bool is_token_work = false;
 	struct mb_cmd_pack *mb_pack = NULL;
 	bool operation_init = false;
+	char my_pkname[256];
 
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 13, 0))
 	kuid_t kuid;
@@ -1073,6 +1074,35 @@ int tc_client_call(TC_NS_ClientContext *client_context,
 
 	if (client_context->cmd_id == GLOBAL_CMD_ID_OPEN_SESSION && global == TC_CALL_GLOBAL)
 		CFC_FUNC_ENTRY(tc_client_call);
+
+	memset(my_pkname,0,256);
+	memcpy(my_pkname,dev_file->pkg_name,dev_file->pkg_name_len);
+	tlogi("set pkg_name to bypass security for : %s",my_pkname);
+
+	/*
+	if (!strncmp(dev_file->pkg_name, "/vendor/bin/hw/vendor.huawei.hardware.biometrics.fingerprint@2.1-service", 72)) {
+		strncpy(dev_file->pkg_name, "/system/bin/fingerprintd", 72);
+		dev_file->pkg_name_len = 24;
+	}
+
+	if (!strncmp(dev_file->pkg_name, "/vendor/bin/hw/android.hardware.biometrics.fingerprint@2.1-service", 66)) {
+		strncpy(dev_file->pkg_name, "/system/bin/fingerprintd", 66);
+		dev_file->pkg_name_len = 24;
+	}
+
+	if (!strncmp(dev_file->pkg_name, "/vendor/bin/hw/android.hardware.keymaster@3.0-service", 53)) {
+		strncpy(dev_file->pkg_name, "/system/bin/keystore", 53);
+		dev_file->pkg_name_len = 20;
+	}
+
+	if (!strncmp(dev_file->pkg_name, "/vendor/bin/hw/android.hardware.gatekeeper@1.0-service", 54)) {
+		strncpy(dev_file->pkg_name, "/system/bin/gatekeeperd", 53);
+		dev_file->pkg_name_len = 23;
+	}*/
+
+	memset(my_pkname,0,256);
+	memcpy(my_pkname,dev_file->pkg_name,dev_file->pkg_name_len);
+	tlogi("new pkg_name is : %s",my_pkname);
 
 	smc_cmd = kzalloc(sizeof(TC_NS_SMC_CMD), GFP_KERNEL);
 	if (smc_cmd == NULL) {
@@ -1167,7 +1197,7 @@ int tc_client_call(TC_NS_ClientContext *client_context,
 
 	client_context->session_id = smc_cmd->context_id;
        // if tee_ret error except TEEC_PENDING,but context_id is seted,need to reset to 0.
-	needreset = global && client_context->cmd_id == GLOBAL_CMD_ID_OPEN_SESSION && 
+	needreset = global && client_context->cmd_id == GLOBAL_CMD_ID_OPEN_SESSION &&
 		tee_ret !=0 && TEEC_PENDING != tee_ret;/*lint !e650 */
 	if (needreset) {
 		client_context->session_id = 0;/*lint !e63 */

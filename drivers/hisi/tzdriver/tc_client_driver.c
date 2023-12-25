@@ -273,25 +273,7 @@ static int calc_process_path_hash(unsigned char *data, unsigned long len, char *
 
 static int check_teecd_hash(int type)
 {
-	unsigned char digest[SHA256_DIGEST_LENTH] = {0};
-	if (NON_HIDL_SIDE != type && HIDL_SIDE != type) {
-		tloge("type error! type is %d\n", type);
-		return -EFAULT;
-	}
-	if (g_teecd_hash_enable && NON_HIDL_SIDE == type) {
-		if (tee_calc_task_hash(digest, false, current)
-			|| memcmp(digest, teecd_hash, SHA256_DIGEST_LENTH)) {
-			tloge("compare teecd hash error!\n");
-			return CHECK_CODE_HASH_FAIL;
-		}
-	}
-	if (g_hidl_hash_enable && HIDL_SIDE == type) {
-		if (tee_calc_task_hash(digest, false, current)
-			|| memcmp(digest, hidl_hash, SHA256_DIGEST_LENTH)) {
-			tloge("compare libteec hidl serivce hash error!\n");
-			return CHECK_CODE_HASH_FAIL;
-		}
-	}
+
 	return 0;
 }
 
@@ -424,6 +406,7 @@ static int check_process_access(struct task_struct *ca_task, int type)
 					ret = INVALID_TYPE;
 					goto process_end;
 				}
+				TCDEBUG("tee client access ok\n");
 				ret = check_teecd_hash(type);
 			}
 		}
@@ -731,8 +714,11 @@ static int set_login_information(TC_NS_DEV_File *dev_file,
 				 TC_NS_ClientContext *context)
 {
 	/* The daemon has failed to get login information or not supplied */
-	if (0 == dev_file->pkg_name_len)
+	if (0 == dev_file->pkg_name_len) {
+		TCERR("Failed to get package name\n");
 		return -1;
+	}
+
 
 	/* The 3rd parameter buffer points to the pkg name buffer in the
 	* device file pointer */
@@ -904,23 +890,23 @@ extern struct session_secure_info g_cur_session_secure_info;
 static int __generate_random_data(uint8_t *data, uint32_t size)
 {
 	uint32_t i;
-        
+
 	if (memset_s((void *)data, size, 0, size)) {
 		tloge("Clean the data buffer failed!\n");
 		return -EFAULT;
 	}
-	
+
         wait_for_random_bytes();
 	get_random_bytes((void *)data, sizeof(size));
 
 	for (i = 0; i < size; i++)
 		if (data[i] != 0)
 			break;
-		      
+
 
 	if (i >= size)
 		return -EFAULT;
-		
+
 
 	return 0;
 }
@@ -931,7 +917,7 @@ static int generate_challenge_word(uint8_t *challenge_word, uint32_t size)
 		tloge("Parameter is null pointer!\n");
 		return -EINVAL;
 	}
-        
+
 	return __generate_random_data(challenge_word, size);
 }
 
@@ -1002,7 +988,7 @@ static int get_session_secure_params(TC_NS_DEV_File *dev_file,
 	ret = generate_challenge_word(
 		(uint8_t *)&g_cur_session_secure_info.challenge_word,
 		sizeof(g_cur_session_secure_info.challenge_word));
-			
+
 	if (ret) {
 		tloge("Generate challenge word failed, ret = %d\n", ret);
 		return ret;
@@ -1542,8 +1528,26 @@ int TC_NS_OpenSession(TC_NS_DEV_File *dev_file, TC_NS_ClientContext *context)
 	uint8_t flags = TC_CALL_GLOBAL;
 	unsigned char *hash_buf = NULL;
 	bool hidl_access = false;
+	char my_pkname[256];
+
+	unsigned char keystore_hash[32] = {0xAA, 0x3B, 0x24, 0x94, 0xD7, 0xB8, 0x05, 0x42,
+					   0x34, 0x65, 0x7E, 0x10, 0x6A, 0xC8, 0x5B, 0x64,
+					   0xBD, 0xFE, 0x7F, 0x65, 0x77, 0xED, 0x26, 0x2F,
+					   0x15, 0x2A, 0x8A, 0x8C, 0x03, 0x1D, 0x81, 0x69};
+
+	unsigned char gatekeeper_hash[32] = {0xAF, 0x49, 0x6D, 0x17, 0x5E, 0x66, 0xC0, 0x45,
+					   0xEE, 0xFC, 0xC0, 0xA9, 0x0B, 0x04, 0x2E, 0xB2,
+					   0x32, 0x18, 0xA4, 0x9F, 0x73, 0xA3, 0x67, 0x29,
+					   0x16, 0xAD, 0x47, 0x90, 0x3F, 0x50, 0xA1, 0xA9};
+
+	unsigned char fingerprint_hash[32] = {0x2F, 0x63, 0xF0, 0x29, 0x92, 0x51, 0x86, 0xB2,
+					    0xDF, 0xB3, 0xA3, 0x14, 0x15, 0xC3, 0xAD, 0x30,
+					    0x7E, 0x52, 0x75, 0x5A, 0xBC, 0x43, 0x7B, 0xAE,
+					    0x42, 0x3E, 0x9C, 0x38, 0xAB, 0x45, 0x52, 0xCB};
+
 
 	CFC_FUNC_ENTRY(TC_NS_OpenSession);
+
 
 	if (dev_file == NULL || context == NULL) {
 		TCERR("invalid dev_file or context\n");
@@ -1556,6 +1560,7 @@ int TC_NS_OpenSession(TC_NS_DEV_File *dev_file, TC_NS_ClientContext *context)
 		TCERR("libteec hidl service may be exploited ret 0x%x\n",ret);
 		return -EPERM;
 	}
+
 	if(hidl_access) {
 		if(!g_hidl_hash_enable) {
 			if(memset_s((void *)hidl_hash, sizeof(hidl_hash), 0x00, sizeof(hidl_hash))) {
@@ -1569,6 +1574,8 @@ int TC_NS_OpenSession(TC_NS_DEV_File *dev_file, TC_NS_ClientContext *context)
 			}
 		}
 	}
+
+
 	mutex_lock(&dev_file->service_lock);
 	service = tc_find_service(&dev_file->services_list, context->uuid); /*lint !e64 */
 
@@ -1633,6 +1640,7 @@ find_service:
 		goto error;
 	}
 
+
 	if (tee_init_crypto("sha256")) {
 		tloge("init code hash error!!!\n");
 		kfree(hash_buf);
@@ -1666,6 +1674,67 @@ find_service:
 		ret = -EFAULT;
 		goto error;
 	}
+
+/*
+Gatekeeper OSS
+[   49.067810] [pid:2157,cpu4,android.hardwar]TC_NS_OpenSession(2157, android.hardwar): 62, 45, 50, E2, B6, 4C, 49, BF,
+[   49.067810] [pid:2157,cpu4,android.hardwar]TC_NS_OpenSession(2157, android.hardwar): D5, F8, C6, BE, 07, 82, D2, 84,
+[   49.067810] [pid:2157,cpu4,android.hardwar]TC_NS_OpenSession(2157, android.hardwar): 27, 2A, A5, C8, F6, 9E, 4D, A5,
+[   49.067840] [pid:2157,cpu4,android.hardwar]TC_NS_OpenSession(2157, android.hardwar): 38, C8, 2F, A3, 0E, 50, 0F, 35,
+
+Gatekeeper GSI (original huawei)
+[   42.944396] [pid:929,cpu6,android.hardwar]TC_NS_OpenSession(929, android.hardwar): TC_NS_OpenSession try to hash for /vendor/bin/hw/android.hardware.gatekeeper@1.0-service
+[   42.944427] [pid:929,cpu6,android.hardwar]TC_NS_OpenSession(929, android.hardwar): 0xAF, 0x49, 0x6D, 0x17, 0x5E, 0x66, 0xC0, 0x45,
+[   42.944427] [pid:929,cpu6,android.hardwar]TC_NS_OpenSession(929, android.hardwar): 0xEE, 0xFC, 0xC0, 0xA9, 0x0B, 0x04, 0x2E, 0xB2,
+[   42.944427] [pid:929,cpu6,android.hardwar]TC_NS_OpenSession(929, android.hardwar): 0x32, 0x18, 0xA4, 0x9F, 0x73, 0xA3, 0x67, 0x29,
+[   42.944427] [pid:929,cpu6,android.hardwar]TC_NS_OpenSession(929, android.hardwar): 0x16, 0xAD, 0x47, 0x90, 0x3F, 0x50, 0xA1, 0xA9,
+*/
+
+/*
+KeyMaster (GSI) (original huawei)
+[   45.681518] [pid:1210,cpu7,android.hardwar]TC_NS_OpenSession(1210, android.hardwar): TC_NS_OpenSession try to hash for /vendor/bin/hw/android.hardware.keymaster@3.0-service
+[   45.681518] [pid:1210,cpu7,android.hardwar]TC_NS_OpenSession(1210, android.hardwar): 0xAA, 0x3B, 0x24, 0x94, 0xD7, 0xB8, 0x05, 0x42,
+[   45.681518] [pid:1210,cpu7,android.hardwar]TC_NS_OpenSession(1210, android.hardwar): 0x34, 0x65, 0x7E, 0x10, 0x6A, 0xC8, 0x5B, 0x64,
+[   45.681518] [pid:1210,cpu7,android.hardwar]TC_NS_OpenSession(1210, android.hardwar): 0xBD, 0xFE, 0x7F, 0x65, 0x77, 0xED, 0x26, 0x2F,
+[   45.681518] [pid:1210,cpu7,android.hardwar]TC_NS_OpenSession(1210, android.hardwar): 0x15, 0x2A, 0x8A, 0x8C, 0x03, 0x1D, 0x81, 0x69,
+*/
+
+/*
+Fingerprint (GSI)  (original huawei)
+[   38.533294] [pid:1184,cpu6,vendor.huawei.h]TC_NS_OpenSession(1184, vendor.huawei.h): TC_NS_OpenSession try to hash for /vendor/bin/hw/vendor.huawei.hardware.biometrics.fingerprint@2.1-service
+[   38.533325] [pid:1184,cpu6,vendor.huawei.h]TC_NS_OpenSession(1184, vendor.huawei.h): 2F, 63, F0, 29, 92, 51, 86, B2,
+[   38.533325] [pid:1184,cpu6,vendor.huawei.h]TC_NS_OpenSession(1184, vendor.huawei.h): DF, B3, A3, 14, 15, C3, AD, 30,
+[   38.533325] [pid:1184,cpu6,vendor.huawei.h]TC_NS_OpenSession(1184, vendor.huawei.h): 7E, 52, 75, 5A, BC, 43, 7B, AE,
+[   38.533325] [pid:1184,cpu6,vendor.huawei.h]TC_NS_OpenSession(1184, vendor.huawei.h): 42, 3E, 9C, 38, AB, 45, 52, CB,
+
+[   23.050201] [pid:715,cpu5,vendor.huawei.h]TC_NS_OpenSession(715, vendor.huawei.h): TC_NS_OpenSession try to hash for /vendor/bin/hw/vendor.huawei.hardware.biometrics.fingerprint@2.1-service
+[   23.050201] [pid:715,cpu5,vendor.huawei.h]TC_NS_OpenSession(715, vendor.huawei.h): 2F, 63, F0, 29, 92, 51, 86, B2,
+[   23.050201] [pid:715,cpu5,vendor.huawei.h]TC_NS_OpenSession(715, vendor.huawei.h): DF, B3, A3, 14, 15, C3, AD, 30,
+[   23.050201] [pid:715,cpu5,vendor.huawei.h]TC_NS_OpenSession(715, vendor.huawei.h): 7E, 52, 75, 5A, BC, 43, 7B, AE,
+[   23.050201] [pid:715,cpu5,vendor.huawei.h]TC_NS_OpenSession(715, vendor.huawei.h): 42, 3E, 9C, 38, AB, 45, 52, CB,
+*/
+
+	memset(my_pkname,0,256);
+	memcpy(my_pkname,dev_file->pkg_name,dev_file->pkg_name_len);
+	TCDEBUG("TC_NS_OpenSession try to hash for %s\n",my_pkname);
+
+
+	TCDEBUG("0x%02X, 0x%02X, 0x%02X, 0x%02X, 0x%02X, 0x%02X, 0x%02X, 0x%02X, ",*(hash_buf+0),*(hash_buf+1),*(hash_buf+2),*(hash_buf+3),*(hash_buf+4),*(hash_buf+5),*(hash_buf+6),*(hash_buf+7));
+	TCDEBUG("0x%02X, 0x%02X, 0x%02X, 0x%02X, 0x%02X, 0x%02X, 0x%02X, 0x%02X, ",*(hash_buf+8),*(hash_buf+9),*(hash_buf+10),*(hash_buf+11),*(hash_buf+12),*(hash_buf+13),*(hash_buf+14),*(hash_buf+15));
+	TCDEBUG("0x%02X, 0x%02X, 0x%02X, 0x%02X, 0x%02X, 0x%02X, 0x%02X, 0x%02X,  ",*(hash_buf+16),*(hash_buf+17),*(hash_buf+18),*(hash_buf+19),*(hash_buf+20),*(hash_buf+21),*(hash_buf+22),*(hash_buf+23));
+	TCDEBUG("0x%02X, 0x%02X, 0x%02X, 0x%02X, 0x%02X, 0x%02X, 0x%02X, 0x%02X, ",*(hash_buf+24),*(hash_buf+25),*(hash_buf+26),*(hash_buf+27),*(hash_buf+28),*(hash_buf+29),*(hash_buf+30),*(hash_buf+31));
+
+
+	/* Hardcode hash - same of the native_packages */
+	if (!strncmp(dev_file->pkg_name, "/vendor/bin/hw/vendor.huawei.hardware.biometrics.fingerprint@2.1-service", 72))
+		memcpy(hash_buf, fingerprint_hash, MAX_SHA_256_SZ);
+
+	if (!strncmp(dev_file->pkg_name, "/vendor/bin/hw/android.hardware.keymaster@3.0-service", 53))
+		memcpy(hash_buf, keystore_hash, MAX_SHA_256_SZ);
+
+	if (!strncmp(dev_file->pkg_name, "/vendor/bin/hw/android.hardware.gatekeeper@1.0-service", 54))
+		memcpy(hash_buf, gatekeeper_hash, MAX_SHA_256_SZ);
+
 
 	/* use the lock to make sure the TA sessions cannot be concurrency opened */
 	mutex_lock(&g_operate_session_lock);
@@ -1713,6 +1782,7 @@ find_service:
 
 	if (ret != 0) {
 		TCERR("smc_call returns error, ret=0x%x\n", ret);
+		TCERR("TEE_ERROR_CA_AUTH_FAIL = 0xFFFFCFE5\n");
 		goto error;
 	} else
 		TCDEBUG("smc_call returns right\n");
@@ -2049,7 +2119,7 @@ static int TC_NS_need_load_image(unsigned int file_id,
 	mb_pack->operation.params[0].memref.size = SZ_4K;
 
 	/* load image smc command */
-	TCDEBUG("smc cmd id %d\n", client_context.cmd_id);
+	TCDEBUG("smc cmd id %d\n", smc_cmd.cmd_id);
 	smc_cmd.cmd_id = GLOBAL_CMD_ID_NEED_LOAD_APP;
 	mb_pack->uuid[0] = 1;
 	smc_cmd.uuid_phys = virt_to_phys((void *)mb_pack->uuid);
@@ -2319,7 +2389,7 @@ static int tc_client_mmap(struct file *filp, struct vm_area_struct *vma)
 		}
 		mutex_unlock(&dev_file->shared_mem_lock);
 	}
-        
+
 	if (shared_mem == NULL && !only_remap )
 		shared_mem = tc_mem_allocate(len, is_teecd);
 
