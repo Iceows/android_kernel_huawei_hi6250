@@ -116,3 +116,5 @@ all.config
 # Kdevelop4
 *.kdev4
 out/*
+Phenix_Kirin65x-4.9.337-enforcing.img
+Phenix_Kirin65x-4.9.337-permissive.img
