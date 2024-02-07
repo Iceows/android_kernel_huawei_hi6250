@@ -308,6 +308,9 @@ static int alloc_operation(TC_NS_DEV_File *dev_file,
 			    (TEEC_MEMREF_TEMP_INOUT == param_type)) {
 				tlogv("client_param->memref.buffer=0x%llx\n",
 					  client_param->memref.buffer);
+					  
+
+				
 				/* Kernel side buffer */
 				if (copy_from_client(temp_buf,
 						     (void *)
@@ -318,7 +321,45 @@ static int alloc_operation(TC_NS_DEV_File *dev_file,
 					ret = -EFAULT;
 					break;
 				}
+
+		
 			}
+
+			/* type = 5 */
+			if (param_type == TEEC_MEMREF_TEMP_INPUT) {
+				uint8_t *my_buffer=temp_buf;
+				int max_b;
+				int posbuf;
+				int i1;
+				int j1;
+					
+				/* Iceows Log buffer */
+				tlogv("client_param TEEC_MEMREF_TEMP_INPUT - buffer_size=%d\n",buffer_size);
+
+				for (j1=0; j1<buffer_size; j1=j1+32) {
+					// variable for storing buffer as printable HEX string
+					uint8_t data_b[32*2+1];
+
+					posbuf=0;
+					if ((buffer_size-j1) > 32) max_b=32; else max_b=buffer_size-j1;
+					
+					// Format data
+					for (i1=0; i1<max_b; i1++){ 
+						posbuf=posbuf+sprintf( data_b + posbuf, "%02X", *(my_buffer+j1+i1) );
+					}
+					
+					// Null-Terminating the string with converted buffer
+					data_b[posbuf] = 0;
+					tlogv("%s",data_b);
+				}
+			}
+			
+			/* type = 6 */
+			if (param_type == TEEC_MEMREF_TEMP_OUTPUT) {
+				tlogv("client_param TEEC_MEMREF_TEMP_OUTPUT - buffer_size=%d\n",buffer_size);
+			}
+
+			
 			ret = encrypt_login_info(flags, client_context->cmd_id,
 					i, buffer_size, temp_buf);
 			if (0 != ret) {
@@ -1098,7 +1139,8 @@ int tc_client_call(TC_NS_ClientContext *client_context,
 	if (!strncmp(dev_file->pkg_name, "/vendor/bin/hw/android.hardware.gatekeeper@1.0-service", 54)) {
 		strncpy(dev_file->pkg_name, "/system/bin/gatekeeperd", 53);
 		dev_file->pkg_name_len = 23;
-	}*/
+	}
+	*/
 
 	memset(my_pkname,0,256);
 	memcpy(my_pkname,dev_file->pkg_name,dev_file->pkg_name_len);
