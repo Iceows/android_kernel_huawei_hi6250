@@ -370,7 +370,7 @@ unsigned int bfmr_capture_log_from_src_file(char *buf, unsigned int buf_len, cha
 * }
 */
 int bfm_process_ocp_boot_fail_test(void *param);
-void bfm_set_valid_long_press_flag(void);
+//void bfm_set_valid_long_press_flag(void);
 int bfm_chipsets_init(bfm_chipsets_init_param_t *param);
 
 #ifdef __cplusplus
