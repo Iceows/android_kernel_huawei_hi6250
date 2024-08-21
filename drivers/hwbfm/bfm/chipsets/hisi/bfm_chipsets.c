@@ -2803,6 +2803,7 @@ static int __init bfm_early_parse_power_off_charge_cmdline(char *p)
 early_param("androidboot.mode", bfm_early_parse_power_off_charge_cmdline);
 
 
+/*
 void bfm_set_valid_long_press_flag(void)
 {
     bfmr_rrecord_misc_msg_param_t misc_msg;
@@ -2823,7 +2824,7 @@ void bfm_set_valid_long_press_flag(void)
         BFMR_PRINT_KEY_INFO("There's no need to save long press log\n");
     }
 }
-
+*/
 
 int bfm_chipsets_init(bfm_chipsets_init_param_t *param)
 {
