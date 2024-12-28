@@ -829,6 +829,7 @@ static int init_hash_tables(struct dm_snapshot *s)
 
 	if (hash_size < 64)
 		hash_size = 64;
+
 	hash_size = rounddown_pow_of_two(hash_size);
 	if (dm_exception_table_init(&s->complete, hash_size,
 				    DM_CHUNK_CONSECUTIVE_BITS))

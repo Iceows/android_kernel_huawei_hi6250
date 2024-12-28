@@ -18,10 +18,6 @@ dm-cache-cleaner-y += dm-cache-policy-cleaner.o
 dm-era-y	+= dm-era-target.o
 dm-verity-y	+= dm-verity-target.o
 
-ifeq ($(CONFIG_OEM_DEFINE_VERITY_FEC),y)
-dm-verity-y     += verity_handle.o
-endif
-
 md-mod-y	+= md.o bitmap.o
 raid456-y	+= raid5.o raid5-cache.o
 
@@ -65,6 +61,7 @@ obj-$(CONFIG_DM_CACHE_CLEANER)	+= dm-cache-cleaner.o
 obj-$(CONFIG_DM_ERA)		+= dm-era.o
 obj-$(CONFIG_DM_LOG_WRITES)	+= dm-log-writes.o
 obj-$(CONFIG_DM_ANDROID_VERITY) += dm-android-verity.o
+obj-$(CONFIG_DM_BOW)		+= dm-bow.o
 
 ifeq ($(CONFIG_DM_UEVENT),y)
 dm-mod-objs			+= dm-uevent.o
